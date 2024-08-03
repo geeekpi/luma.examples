@@ -1,0 +1,103 @@
+import time
+import signal
+import requests
+import board
+import busio
+from adafruit_ssd1306 import SSD1306_I2C
+from PIL import ImageFont, ImageDraw, Image
+
+# Define the I2C address
+I2C_ADDRESS = 0x3C
+
+# Define the font path
+font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+font = ImageFont.truetype(font_path, 12)
+
+def get_ltc_balance(address):
+    url = f'https://api.blockcypher.com/v1/ltc/main/addrs/{address}/balance'
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        balance_satoshi = data['final_balance']
+        balance_ltc = balance_satoshi / 1e8  # Convert satoshi to LTC
+        return balance_ltc
+    else:
+        return None
+
+def display_balance_on_oled(balance, address):
+    # Initialize I2C interface and OLED display
+    i2c = busio.I2C(board.SCL, board.SDA)
+    oled = SSD1306_I2C(128, 64, i2c, addr=I2C_ADDRESS)
+
+    # Create a blank image for drawing
+    width = oled.width
+    height = oled.height
+    image = Image.new("1", (width, height))
+
+    # Get drawing object to draw on the image
+    draw = ImageDraw.Draw(image)
+
+    # Clear the display
+    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+
+    # Prepare text for display
+    balance_text = f'Balance: {balance:.8f} LTC'
+    address_text = f'Address: {address[:6]}...{address[-6:]}'
+
+    # Draw text on the image
+    draw.text((0, 0), balance_text, font=font, fill=255)
+    draw.text((0, 20), address_text, font=font, fill=255)
+
+    # Display image
+    oled.image(image)
+    oled.show()
+
+def show_loading(oled):
+    # Create a blank image for drawing
+    width = oled.width
+    height = oled.height
+    image = Image.new("1", (width, height))
+
+    # Get drawing object to draw on the image
+    draw = ImageDraw.Draw(image)
+
+    # Clear the display
+    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+
+    # Draw loading text
+    draw.text((0, 0), "Fetching LTC balance...", font=font, fill=255)
+
+    # Display image
+    oled.image(image)
+    oled.show()
+
+def main():
+    wallet_address = input("Enter Litecoin wallet address: ")
+
+    # Initialize I2C interface and OLED display
+    i2c = busio.I2C(board.SCL, board.SDA)
+    oled = SSD1306_I2C(128, 64, i2c, addr=I2C_ADDRESS)
+
+    show_loading(oled)
+
+    while True:
+        balance = get_ltc_balance(wallet_address)
+        if balance is not None:
+            display_balance_on_oled(balance)
+        else:
+            with canvas(device) as draw:
+                draw.text((0, 0), "Failed to retrieve balance.", font=font, fill="white")
+        time.sleep(30)  # Refresh every 30 seconds
+
+def handler(signum, frame):
+    sys.exit()
+
+# I love you cunt (: -Distro 
+
+if __name__ == "__main__":
+    try:
+        signal.signal(signal.SIGINT, handler)
+        main()
+    except KeyboardInterrupt:
+        pass
